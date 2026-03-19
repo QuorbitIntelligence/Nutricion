@@ -101,18 +101,32 @@ img { max-width: 100%; }
   position: fixed; inset: 0;
   background: var(--sidebar-bg);
   z-index: 9999;
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-  transition: opacity .4s;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 20px; padding-top: max(20px, env(safe-area-inset-top));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  transition: opacity .25s;
 }
-#auth-screen.hidden { opacity: 0; pointer-events: none; }
+#auth-screen.hiding {
+  opacity: 0;
+  pointer-events: none !important;
+}
+#auth-screen.hidden {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
 .auth-card {
   background: var(--white);
   border-radius: var(--r-lg);
   width: 100%; max-width: 420px;
-  padding: 36px 36px 32px;
+  padding: 32px 30px 28px;
   box-shadow: var(--shadow-lg);
-  animation: authIn .5s cubic-bezier(.4,0,.2,1);
+  animation: authIn .4s cubic-bezier(.4,0,.2,1);
+  margin: auto;
+  position: relative;
+  z-index: 10000;
+  -webkit-tap-highlight-color: transparent;
 }
 @keyframes authIn { from { opacity:0; transform:scale(.96) translateY(10px); } to { opacity:1; transform:none; } }
 .auth-logo {
@@ -881,7 +895,12 @@ img { max-width: 100%; }
   .about-grid { grid-template-columns: 1fr; }
   .dev-card { flex-direction: column; text-align: center; }
   .dev-chips { justify-content: center; }
-  .auth-card { padding: 24px 20px 20px; }
+  /* Auth card en móvil: centrado vertical con scroll */
+  #auth-screen { align-items: flex-start; padding-top: 24px; padding-bottom: 24px; }
+  .auth-card { padding: 24px 18px 20px; border-radius: var(--r); }
+  .auth-logo { font-size: 22px; }
+  .auth-step-title { font-size: 16px; }
+  .btn-lg { height: 42px; font-size: 14px; }
   .side-panel { width: 100%; right: -100%; }
   .page-toolbar { gap: 8px; }
   .search-box { max-width: 100%; }
@@ -1564,14 +1583,30 @@ function finalizarOnboarding() {
 }
 function iniciarApp(user) {
   Store.set('current_user', user);
-  document.getElementById('auth-screen').classList.add('hidden');
+
+  // 1. Deshabilitar interacción inmediatamente (crítico en iOS)
+  const authEl = document.getElementById('auth-screen');
+  authEl.classList.add('hiding');
+  authEl.style.pointerEvents = 'none';
+
+  // 2. Mostrar app
   document.getElementById('app').classList.remove('hidden');
   initData();
   aplicarConfig();
   cargarUI(user);
   renderDashboard();
   mostrarBanners();
-  setTimeout(()=>document.getElementById('auth-screen').style.display='none', 500);
+
+  // 3. Ocultar pantalla auth completamente tras animación
+  setTimeout(() => {
+    authEl.classList.remove('hiding');
+    authEl.classList.add('hidden');
+    authEl.style.display = 'none';
+    authEl.style.pointerEvents = 'none';
+    authEl.style.visibility = 'hidden';
+    authEl.setAttribute('aria-hidden', 'true');
+    authEl.setAttribute('inert', '');
+  }, 350);
 }
 function cargarUI(user) {
   const nombre = (user.nombre||'')+ (user.apellido?' '+user.apellido:'') ||'Admin';
@@ -2447,12 +2482,18 @@ function guardarNuevaPass() {
 function cerrarSesion() {
   if(!confirm('¿Cerrar sesión?')) return;
   Store.del('current_user');
+  // Restaurar auth screen correctamente
+  const authEl = document.getElementById('auth-screen');
+  authEl.style.display = '';
+  authEl.style.visibility = '';
+  authEl.style.pointerEvents = '';
+  authEl.removeAttribute('inert');
+  authEl.removeAttribute('aria-hidden');
+  authEl.classList.remove('hidden', 'hiding');
   document.getElementById('app').classList.add('hidden');
-  document.getElementById('auth-screen').style.display='';
-  document.getElementById('auth-screen').classList.remove('hidden');
-  document.querySelectorAll('.auth-step').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.auth-step').forEach(s => s.classList.remove('active'));
   document.getElementById('step-login').classList.add('active');
-  toast('Sesión cerrada','ok');
+  toast('Sesión cerrada', 'ok');
 }
 function exportarDatos() {
   const data={ pacs:getPacs(), nuts:getNuts(), citas:getCitas(), cfg:getCfg() };
